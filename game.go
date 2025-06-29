@@ -1,0 +1,297 @@
+package main
+
+import (
+	"fmt"
+	"image/color"
+	"math"
+	"math/rand"
+
+	rl "github.com/gen2brain/raylib-go/raylib"
+)
+
+const WindowHeight int = 972
+const WindowWidth int = 1728
+const MaxStars int = 5
+
+type Game struct {
+	// Game state
+	gameState State
+
+	// Textures
+	backgroundTexture rl.Texture2D
+	shipTexture       rl.Texture2D
+	asteroidTexture   rl.Texture2D
+	blackHoleTexture  rl.Texture2D
+	starTexture       rl.Texture2D
+
+	// Sounds
+	music          rl.Sound
+	explosionSound rl.Sound
+	engineSound    rl.Sound
+
+	// Game components
+	ship                   Ship
+	blackHoleList          []BlackHole
+	starList               []Star
+	asteroidList           []Asteroid
+	explosionClusterList   []ExplosionCluster
+	addedFinalExplosion    bool
+	restartCounter         int32
+	asteroidCountdownRange rl.Vector2
+	starAdditionCountdown  int32
+	starMultiplier         int32
+	asteroidCountdown      int32
+	score                  int32
+}
+
+type State int
+
+const (
+	Start State = iota
+	Play
+	Restart
+)
+
+func initGame() Game {
+	// Init game contexts
+	rl.InitWindow(int32(WindowWidth), int32(WindowHeight), "Black Hole Bounce")
+	rl.InitAudioDevice()
+	rl.SetTargetFPS(60)
+
+	// Load the assets and return game element
+	return Game{
+		gameState:         Start,
+		backgroundTexture: rl.LoadTexture("assets/images/background.png"),
+		shipTexture:       rl.LoadTexture("assets/images/ship.png"),
+		asteroidTexture:   rl.LoadTexture("assets/images/asteroid.png"),
+		blackHoleTexture:  rl.LoadTexture("assets/images/black_hole.png"),
+		starTexture:       rl.LoadTexture("assets/images/star.png"),
+		music:             rl.LoadSound("assets/sound/scifi_background.wav"),
+		explosionSound:    rl.LoadSound("assets/sound/explosion.wav"),
+		engineSound:       rl.LoadSound("assets/sound/engine.wav"),
+	}
+}
+
+// Reload game components (resets to starting state)
+func (g *Game) reloadGameComponents() {
+	g.ship = initShip(g, rl.Vector2{X: float32(WindowWidth) / 2, Y: float32(WindowHeight) / 2}, 5, g.shipTexture)
+	g.blackHoleList = []BlackHole{}
+	g.asteroidList = []Asteroid{}
+	g.explosionClusterList = []ExplosionCluster{}
+	g.addedFinalExplosion = false
+	g.restartCounter = 120
+	g.asteroidCountdownRange = rl.Vector2{X: 180, Y: 300}
+	g.starAdditionCountdown = 1800
+	g.starMultiplier = 1
+	g.asteroidCountdown = int32(rand.Intn(int(g.asteroidCountdownRange.Y-g.asteroidCountdownRange.X))) + int32(g.asteroidCountdownRange.X)
+	starList := []Star{}
+	for range MaxStars {
+		starList = append(starList, g.generateRandomStar())
+	}
+	g.starList = starList
+	g.score = 0
+}
+
+// Unload the loaded assets before closing the game
+func (g *Game) unload() {
+	rl.UnloadTexture(g.backgroundTexture)
+	rl.UnloadTexture(g.shipTexture)
+	rl.UnloadTexture(g.asteroidTexture)
+	rl.UnloadTexture(g.blackHoleTexture)
+	rl.UnloadTexture(g.starTexture)
+	rl.UnloadSound(g.music)
+	rl.UnloadSound(g.explosionSound)
+	rl.UnloadSound(g.engineSound)
+}
+
+// Main loop of the game
+func (g *Game) run() {
+	// Boot initial tasks
+	rl.PlaySound(g.music)
+	g.reloadGameComponents()
+
+	for !rl.WindowShouldClose() {
+		g.handleInput()
+		g.update()
+		g.render()
+	}
+
+	g.unload()
+	rl.CloseAudioDevice()
+	rl.CloseWindow()
+}
+
+// Render textures to screen
+func (g *Game) render() {
+	rl.BeginDrawing()
+	rl.ClearBackground(rl.White)
+
+	// Draw the background
+	rl.DrawTexture(g.backgroundTexture, 0, 0, color.RGBA{255, 255, 255, 200})
+
+	switch g.gameState {
+	case Play:
+		// Render stars
+		for _, star := range g.starList {
+			star.render()
+		}
+
+		// Render black holes
+		for _, blackHole := range g.blackHoleList {
+			blackHole.render()
+		}
+
+		// Render asteroids
+
+		// Render explosions
+		for _, cluster := range g.explosionClusterList {
+			cluster.render()
+		}
+
+		// Render the ship
+		g.ship.render()
+
+		// Draw UI elements
+		rl.DrawText(fmt.Sprintf("Score: %d", g.score), 10, 10, 40, rl.RayWhite)
+	case Start:
+		rl.DrawText("Black Hole Bounce", 600, 300, 64, rl.RayWhite)
+		rl.DrawText("Stay Alive as Long as You Can!", 400, 350, 64, rl.RayWhite)
+
+		rl.DrawText("Left/Right arrows: Turn", 600, 450, 48, rl.RayWhite)
+		rl.DrawText("Up/Down arrows: Accelerate/Decelerate", 400, 500, 48, rl.RayWhite)
+		rl.DrawText("Press Space to Start!", 520, 600, 64, rl.RayWhite)
+	case Restart:
+		rl.DrawText(fmt.Sprintf("Final Score: %d", g.score), 620, 300, 64, rl.RayWhite)
+		rl.DrawText("Play Again?", 685, 350, 64, rl.RayWhite)
+
+		rl.DrawText("Left/Right arrows: Turn", 600, 450, 48, rl.RayWhite)
+		rl.DrawText("Up/Down arrows: Accelerate/Decelerate", 400, 500, 48, rl.RayWhite)
+		rl.DrawText("Press Space to Start!", 520, 600, 64, rl.RayWhite)
+	}
+
+	rl.EndDrawing()
+}
+
+// Process game logic updates
+func (g *Game) update() {
+	if !rl.IsSoundPlaying(g.music) {
+		rl.PlaySound(g.music)
+	}
+
+	if g.gameState == Play {
+		// Process end-game components
+		if g.ship.isDead {
+			if !g.addedFinalExplosion {
+				g.createNewExplosion(g.ship.pos, 50)
+				g.addedFinalExplosion = true
+			}
+			g.restartCounter -= 1
+		}
+		if g.restartCounter <= 0 {
+			g.gameState = Restart
+		}
+
+		// Increase the score
+		if !g.ship.isDead {
+			g.score += 1
+		}
+
+		// Process asteroid event
+		g.asteroidCountdown -= 1
+		if g.asteroidCountdown <= 0 {
+			g.createNewAsteroid()
+		}
+
+		// Process star event
+		g.starAdditionCountdown -= 1
+		if g.starAdditionCountdown <= 0 {
+			g.starMultiplier = int32(math.Min(5, float64(g.starMultiplier+1)))
+			g.starAdditionCountdown = 1800
+		}
+
+		// Update the ship
+		g.ship.update()
+
+		// Update the black holes
+		newBlackholeList := []BlackHole{}
+		for _, blackHole := range g.blackHoleList {
+			blackHole.update()
+
+			if blackHole.radius > DECAY_RATE {
+				newBlackholeList = append(newBlackholeList, blackHole)
+			} else {
+				for range g.starMultiplier {
+					g.starList = append(g.starList, g.generateRandomStar())
+				}
+			}
+		}
+		g.blackHoleList = newBlackholeList
+
+		// Update the stars
+		newStarList := []Star{}
+		for _, star := range g.starList {
+			star.update()
+
+			if star.detonationCounter > 0 {
+				newStarList = append(newStarList, star)
+			} else {
+				g.addBlackHole(star.pos)
+			}
+		}
+		g.starList = newStarList
+
+		// Update the asteroids
+
+		// Update the explosions
+		newExplosionClusterList := []ExplosionCluster{}
+		for _, cluster := range g.explosionClusterList {
+			cluster.update()
+
+			if len(cluster.explosions) > 0 {
+				newExplosionClusterList = append(newExplosionClusterList, cluster)
+			}
+		}
+		g.explosionClusterList = newExplosionClusterList
+
+	}
+}
+
+// Handle user input
+func (g *Game) handleInput() {
+	switch g.gameState {
+	case Play:
+		if rl.IsKeyDown(rl.KeyRight) {
+			g.ship.angle += math.Pi / 60
+		}
+		if rl.IsKeyDown(rl.KeyLeft) {
+			g.ship.angle -= math.Pi / 60
+		}
+		if rl.IsKeyDown(rl.KeyUp) {
+			g.ship.increaseSpeed()
+		}
+		if rl.IsKeyDown(rl.KeyDown) {
+			g.ship.decreaseSpeed()
+		}
+	case Start, Restart:
+		if rl.IsKeyPressed(rl.KeySpace) {
+			g.reloadGameComponents()
+			g.gameState = Play
+		}
+	}
+}
+
+func (g *Game) addBlackHole(p rl.Vector2) {
+	g.blackHoleList = append(g.blackHoleList, initBlackHole(g, p, 45.0))
+}
+
+func (g *Game) generateRandomStar() Star {
+	return initStar(g, rl.Vector2{X: float32(rand.Intn(WindowWidth-40) + 20), Y: float32(rand.Intn(WindowHeight-40) + 20)}, 5)
+}
+
+func (g *Game) createNewAsteroid() {
+	// TODO: Generate asteroid
+}
+
+func (g *Game) createNewExplosion(p rl.Vector2, e int32) {
+	g.explosionClusterList = append(g.explosionClusterList, initExplosionCluster(g, p, e))
+}
