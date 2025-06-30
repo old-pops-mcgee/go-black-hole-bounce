@@ -33,3 +33,7 @@ go.work.sum
 
 # Game-specific items
 app
+
+# Web ASM files
+Raylib-Go-Wasm
+server

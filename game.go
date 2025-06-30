@@ -1,6 +1,8 @@
 package main
 
 import (
+	"embed"
+	_ "embed"
 	"fmt"
 	"image/color"
 	"math"
@@ -9,8 +11,11 @@ import (
 	rl "github.com/gen2brain/raylib-go/raylib"
 )
 
-const WindowHeight int = 972
-const WindowWidth int = 1728
+//go:embed assets
+var ASSETS embed.FS
+
+const WindowHeight int = 840
+const WindowWidth int = 1540
 const MaxStars int = 5
 
 type Game struct {
@@ -51,6 +56,10 @@ const (
 	Play
 	Restart
 )
+
+func init() {
+	rl.AddFileSystem(ASSETS)
+}
 
 func initGame() Game {
 	// Init game contexts
@@ -110,10 +119,14 @@ func (g *Game) run() {
 	rl.PlaySound(g.music)
 	g.reloadGameComponents()
 
-	for !rl.WindowShouldClose() {
+	var update = func() {
 		g.handleInput()
 		g.update()
 		g.render()
+	}
+	rl.SetMainLoop(update)
+	for !rl.WindowShouldClose() {
+		update()
 	}
 
 	g.unload()
@@ -158,19 +171,19 @@ func (g *Game) render() {
 		// Draw UI elements
 		rl.DrawText(fmt.Sprintf("Score: %d", g.score), 10, 10, 40, rl.RayWhite)
 	case Start:
-		rl.DrawText("Black Hole Bounce", 600, 300, 64, rl.RayWhite)
-		rl.DrawText("Stay Alive as Long as You Can!", 400, 350, 64, rl.RayWhite)
+		rl.DrawText("Black Hole Bounce", 550, 300, 64, rl.RayWhite)
+		rl.DrawText("Stay Alive as Long as You Can!", 350, 350, 64, rl.RayWhite)
 
-		rl.DrawText("Left/Right arrows: Turn", 600, 450, 48, rl.RayWhite)
-		rl.DrawText("Up/Down arrows: Accelerate/Decelerate", 400, 500, 48, rl.RayWhite)
-		rl.DrawText("Press Space to Start!", 520, 600, 64, rl.RayWhite)
+		rl.DrawText("Left/Right arrows: Turn", 550, 450, 48, rl.RayWhite)
+		rl.DrawText("Up/Down arrows: Accelerate/Decelerate", 350, 500, 48, rl.RayWhite)
+		rl.DrawText("Press Space to Start!", 470, 600, 64, rl.RayWhite)
 	case Restart:
-		rl.DrawText(fmt.Sprintf("Final Score: %d", g.score), 620, 300, 64, rl.RayWhite)
-		rl.DrawText("Play Again?", 685, 350, 64, rl.RayWhite)
+		rl.DrawText(fmt.Sprintf("Final Score: %d", g.score), 570, 300, 64, rl.RayWhite)
+		rl.DrawText("Play Again?", 635, 350, 64, rl.RayWhite)
 
-		rl.DrawText("Left/Right arrows: Turn", 600, 450, 48, rl.RayWhite)
-		rl.DrawText("Up/Down arrows: Accelerate/Decelerate", 400, 500, 48, rl.RayWhite)
-		rl.DrawText("Press Space to Start!", 520, 600, 64, rl.RayWhite)
+		rl.DrawText("Left/Right arrows: Turn", 550, 450, 48, rl.RayWhite)
+		rl.DrawText("Up/Down arrows: Accelerate/Decelerate", 350, 500, 48, rl.RayWhite)
+		rl.DrawText("Press Space to Start!", 470, 600, 64, rl.RayWhite)
 	}
 
 	rl.EndDrawing()
