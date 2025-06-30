@@ -142,6 +142,10 @@ func (g *Game) render() {
 		}
 
 		// Render asteroids
+		for _, asteroid := range g.asteroidList {
+			fmt.Println("Afdsa")
+			asteroid.render()
+		}
 
 		// Render explosions
 		for _, cluster := range g.explosionClusterList {
@@ -241,6 +245,14 @@ func (g *Game) update() {
 		g.starList = newStarList
 
 		// Update the asteroids
+		newAsteroidList := []Asteroid{}
+		for _, asteroid := range g.asteroidList {
+			asteroid.update()
+			if asteroid.isAlive {
+				newAsteroidList = append(newAsteroidList, asteroid)
+			}
+		}
+		g.asteroidList = newAsteroidList
 
 		// Update the explosions
 		newExplosionClusterList := []ExplosionCluster{}
@@ -289,7 +301,52 @@ func (g *Game) generateRandomStar() Star {
 }
 
 func (g *Game) createNewAsteroid() {
-	// TODO: Generate asteroid
+	// Determine side first
+	side := rand.Intn(4)
+	initialVelocity := rl.Vector2{}
+	directionOfFreeSide := rand.Float32() - 0.5
+	if directionOfFreeSide < 0 {
+		directionOfFreeSide = -1
+	} else {
+		directionOfFreeSide = 1
+	}
+	pos := rl.Vector2{}
+	velocityScale := rand.Float32() * 20.0
+
+	switch side {
+	case 0:
+		// Top side
+		pos.X = float32(rand.Intn(WindowWidth-80) + 40)
+		pos.Y = float32(WindowHeight - 20)
+		initialVelocity.X = rand.Float32() * directionOfFreeSide * velocityScale
+		initialVelocity.Y = rand.Float32() * velocityScale
+	case 1:
+		// Right side
+		pos.X = float32(WindowWidth + 20)
+		pos.Y = float32(rand.Intn(WindowHeight-80) + 40)
+		initialVelocity.X = rand.Float32() * -velocityScale
+		initialVelocity.Y = rand.Float32() * directionOfFreeSide * velocityScale
+	case 2:
+		// Bottom side
+		pos.X = float32(rand.Intn(WindowWidth-80) + 40)
+		pos.Y = float32(WindowHeight + 20)
+		initialVelocity.X = rand.Float32() * directionOfFreeSide * velocityScale
+		initialVelocity.Y = rand.Float32() * -velocityScale
+	case 3:
+		// Left side
+		pos.X = float32(WindowWidth - 20)
+		pos.Y = float32(rand.Intn(WindowHeight-80) + 40)
+		initialVelocity.X = rand.Float32() * velocityScale
+		initialVelocity.Y = rand.Float32() * directionOfFreeSide * velocityScale
+	}
+
+	g.asteroidList = append(g.asteroidList, initAsteroid(g, pos, 10.0, initialVelocity))
+	fmt.Println(len(g.asteroidList))
+	g.asteroidCountdownRange = rl.Vector2{
+		X: float32(math.Max(20, float64(g.asteroidCountdownRange.X)-10)),
+		Y: float32(math.Max(40, float64(g.asteroidCountdownRange.Y)-10)),
+	}
+	g.asteroidCountdown = int32(rand.Intn(int(g.asteroidCountdownRange.Y)) + int(g.asteroidCountdownRange.X))
 }
 
 func (g *Game) createNewExplosion(p rl.Vector2, e int32) {

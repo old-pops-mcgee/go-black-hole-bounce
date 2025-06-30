@@ -8,7 +8,7 @@ import (
 )
 
 const STANDARD_FORCE float32 = 2500.0
-const FUDGE_FACTOR float32 = 3.5
+const FUDGE_FACTOR float64 = 3.5
 const DECAYING_FORCE_ADDER float32 = 20.0
 const DECAY_RATE float32 = 0.25
 const RENDER_SCALE float32 = 3.5
@@ -61,11 +61,19 @@ func (b *BlackHole) render() {
 
 func (b *BlackHole) update() {
 	b.radius -= DECAY_RATE
-	b.deathRadius -= 0.4 * b.radius
+	b.deathRadius -= 0.4 * DECAY_RATE
 	b.force += DECAYING_FORCE_ADDER
 	if b.turningDirection {
 		b.angle += b.rotationSpeed
 	} else {
 		b.angle -= b.rotationSpeed
 	}
+}
+
+func (b *BlackHole) calculateForceOnObject(obj rl.Vector2) rl.Vector2 {
+	angle := math.Atan2(float64(b.pos.Y-obj.Y), float64(b.pos.X-obj.X))
+	dis := math.Sqrt(math.Pow(float64(b.pos.Y-obj.Y), 2) + math.Pow(float64(b.pos.X-obj.X), 2))
+
+	gForce := float64(b.force) / (FUDGE_FACTOR * math.Pow(dis, 2))
+	return rl.Vector2{X: float32(math.Cos(angle) * gForce), Y: float32(math.Sin(angle) * gForce)}
 }

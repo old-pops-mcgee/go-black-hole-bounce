@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"image/color"
 	"math"
 	"math/rand"
@@ -71,10 +72,29 @@ func (s *Ship) update() {
 		}
 
 		// Check asteroid collisions
+		for _, asteroid := range s.game.asteroidList {
+			asteroidCollisionCircle := asteroid.getCollisionCircle()
+			if rl.CheckCollisionCircles(s.pos, s.radius, rl.Vector2{X: asteroidCollisionCircle.X, Y: asteroidCollisionCircle.Y}, asteroidCollisionCircle.Z) {
+				s.isDead = true
+				asteroid.isAlive = false
+				s.game.createNewExplosion(asteroid.pos, 15)
+				return
+			}
+		}
 
 		// Check black hole collisions
+		for _, blackHole := range s.game.blackHoleList {
+			if rl.CheckCollisionCircles(s.pos, s.radius, blackHole.pos, blackHole.deathRadius) {
+				fmt.Println("collided with black hole")
+				fmt.Printf("s.pos: %v\ns.radius: %v\nb.pos: %v\nb.radius: %v\n", s.pos, s.radius, blackHole.pos, blackHole.deathRadius)
+				fmt.Println(blackHole)
+				s.isDead = true
+				return
+			}
 
-		// Calculate velocity updates from black hole
+			// Calculate velocity updates from black hole
+			s.velocity = rl.Vector2Add(s.velocity, blackHole.calculateForceOnObject(s.pos))
+		}
 
 		// Calculate new position
 		s.pos = rl.Vector2Add(s.pos, rl.Vector2{
